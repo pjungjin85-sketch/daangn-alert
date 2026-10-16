@@ -20,6 +20,13 @@
       "minPrice": null,
       "maxPrice": 50000,
       "enabled": true
+    },
+    {
+      "id": "1076c72b",
+      "keyword": "토토보넷",
+      "minPrice": null,
+      "maxPrice": null,
+      "enabled": true
     }
   ]
 }
