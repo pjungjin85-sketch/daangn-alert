@@ -16,7 +16,9 @@ export async function searchArticles(keyword) {
   });
   if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
   const html = await res.text();
-  return { ...parseSearch(html), bytes: html.length, finalUrl: res.url };
+  const result = { ...parseSearch(html), bytes: html.length, finalUrl: res.url };
+  if (!result.articles.length) console.log(`  [진단] ${structureHints(html)}`);
+  return result;
 }
 
 // { articles, source } — source는 어느 경로로 읽었는지 (json | links), 진단 로그용
@@ -134,6 +136,24 @@ function parseLinks(html) {
     });
   }
   return [...seen.values()];
+}
+
+// 0건일 때 페이지 구조를 파악하기 위한 힌트 (매물 내용 없이 구조 정보만)
+function structureHints(html) {
+  const count = (re) => (html.match(re) || []).length;
+  const markers = [];
+  let at = -1;
+  while ((at = html.indexOf("buySellArticles", at + 1)) >= 0 && markers.length < 5) {
+    markers.push(JSON.stringify(html.slice(at + 15, at + 30)));
+  }
+  return [
+    `buy-sell/ ${count(/buy-sell\//g)}`,
+    `href="/kr/buy-sell/ ${count(/href="\/kr\/buy-sell\//g)}`,
+    `href="https://www.daangn.com/kr/buy-sell/ ${count(/href="https:\/\/www\.daangn\.com\/kr\/buy-sell\//g)}`,
+    `buySellArticles 뒤: ${markers.join(" | ") || "없음"}`,
+    `script ${count(/<script/g)}`,
+    `title ${JSON.stringify(html.match(/<title>([^<]{0,60})/)?.[1] ?? "")}`,
+  ].join(", ");
 }
 
 // Actions 로그에 남길 진단 요약 (공개 로그라 매물 내용은 남기지 않고 숫자만)
