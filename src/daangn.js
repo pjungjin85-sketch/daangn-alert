@@ -15,7 +15,8 @@ export async function searchArticles(keyword) {
     headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" },
   });
   if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
-  return parseSearch(await res.text());
+  const html = await res.text();
+  return { ...parseSearch(html), bytes: html.length, finalUrl: res.url };
 }
 
 // { articles, source } — source는 어느 경로로 읽었는지 (json | links), 진단 로그용
@@ -136,13 +137,13 @@ function parseLinks(html) {
 }
 
 // Actions 로그에 남길 진단 요약 (공개 로그라 매물 내용은 남기지 않고 숫자만)
-export function describe({ articles, source }) {
+export function describe({ articles, source, bytes, finalUrl }) {
   const n = articles.length;
   const has = (k) => articles.filter((a) => a[k] != null && a[k] !== "").length;
   const statuses = {};
   for (const a of articles) statuses[a.status || "없음"] = (statuses[a.status || "없음"] ?? 0) + 1;
   const st = Object.entries(statuses).map(([k, v]) => `${k} ${v}`).join("·");
-  return `읽기 ${source}, 가격 ${has("price")}/${n}, 지역 ${has("region")}/${n}, 상태 ${st}`;
+  return `응답 ${Math.round((bytes ?? 0) / 1024)}KB ${finalUrl ? new URL(finalUrl).pathname : "-"}, 읽기 ${source}, 가격 ${has("price")}/${n}, 지역 ${has("region")}/${n}, 상태 ${st}`;
 }
 
 export function isSoldOrReserved(article) {

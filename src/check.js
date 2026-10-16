@@ -93,6 +93,13 @@ async function main() {
     const known = new Set(record.ids);
     let fresh = articles.filter((a) => !known.has(a.id));
 
+    // 검색 결과가 0건이면 차단·일시 오류일 수 있다. 첫 기록을 0건으로 해 두면
+    // 다음 실행에서 기존 매물이 전부 새 매물로 잡히므로 아무것도 하지 않고 넘어간다.
+    if (!articles.length && !record.initializedAt) {
+      console.log(`● ${kw.keyword}: 검색 결과 0건 — 첫 기록 보류`);
+      continue;
+    }
+
     // 키워드를 처음 등록했을 때는 기존 매물을 '본 것'으로만 처리하고 알림은 보내지 않는다
     if (!record.initializedAt) {
       record.initializedAt = new Date().toISOString();
