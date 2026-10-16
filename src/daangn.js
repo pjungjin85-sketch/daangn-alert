@@ -49,7 +49,7 @@ export function articleKey(url) {
 }
 
 // `"key":[ ... ]` 를 찾아 괄호 짝을 맞춰 배열 부분만 잘라 JSON으로 읽는다.
-function extractJsonArray(text, key) {
+export function extractJsonArray(text, key) {
   const marker = `"${key}":[`;
   let from = 0;
   while (true) {
