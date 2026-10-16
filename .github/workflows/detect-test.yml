@@ -1,0 +1,15 @@
+name: 새 글 감지 실측 (임시)
+on:
+  workflow_dispatch:
+    inputs:
+      keyword: { description: "키워드", default: "아이폰" }
+      minutes: { description: "측정 시간(분)", default: "20" }
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scripts/detect-test.js "${{ inputs.keyword }}" "${{ inputs.minutes }}" 120
