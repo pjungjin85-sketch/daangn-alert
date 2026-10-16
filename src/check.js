@@ -2,7 +2,7 @@
 //   node src/check.js            실제 실행 (알림 발송 + data/seen.json 갱신)
 //   node src/check.js --dry-run  검색 결과만 출력 (발송·저장 안 함)
 import { readFile, writeFile } from "node:fs/promises";
-import { searchArticles, searchUrl, isSoldOrReserved } from "./daangn.js";
+import { searchArticles, searchUrl, isSoldOrReserved, describe } from "./daangn.js";
 import { sendTelegram, escapeHtml } from "./telegram.js";
 
 const CONFIG_PATH = new URL("../config/keywords.json", import.meta.url);
@@ -71,7 +71,9 @@ async function main() {
     if (i > 0) await sleep(DELAY_MS);
     let articles;
     try {
-      articles = (await searchArticles(kw.keyword.trim())).filter((a) => !isSoldOrReserved(a));
+      const result = await searchArticles(kw.keyword.trim());
+      console.log(`  ${kw.keyword}: ${describe(result)}`);
+      articles = result.articles.filter((a) => !isSoldOrReserved(a));
     } catch (e) {
       failures++;
       console.error(`✗ ${kw.keyword}: ${e.message}`);

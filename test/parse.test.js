@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSearchHtml, toPrice, isSoldOrReserved } from "../src/daangn.js";
+import { parseSearchHtml, toPrice, isSoldOrReserved, articleKey } from "../src/daangn.js";
 import { inPriceRange, formatPrice } from "../src/check.js";
 
 const html = `<html><script>window.__ctx = {"state":{"loaderData":{"search":{"buySellArticles":[
@@ -35,4 +35,10 @@ test("가격 변환과 범위", () => {
   assert.equal(inPriceRange(5000, { minPrice: 10000 }), false);
   assert.equal(inPriceRange(null, { maxPrice: 1 }), true);
   assert.equal(formatPrice(0), "나눔");
+});
+
+test("매물 고유코드는 제목이 바뀌어도 같다", () => {
+  assert.equal(articleKey("https://www.daangn.com/kr/buy-sell/%EC%8B%A4%EB%A6%AC-%EC%B0%A8%EC%BD%9C-8yu7ko316jnv/"), "8yu7ko316jnv");
+  assert.equal(articleKey("/kr/buy-sell/%EC%8B%A4%EB%A6%AC-%EC%83%88%EC%A0%9C%ED%92%88-8yu7ko316jnv/"), "8yu7ko316jnv");
+  assert.equal(articleKey("/kr/buy-sell/def456/"), "def456");
 });

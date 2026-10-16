@@ -15,13 +15,26 @@ export async function searchArticles(keyword) {
     headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" },
   });
   if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
-  return parseSearchHtml(await res.text());
+  return parseSearch(await res.text());
 }
 
-export function parseSearchHtml(html) {
+// { articles, source } — source는 어느 경로로 읽었는지 (json | links), 진단 로그용
+export function parseSearch(html) {
   const raw = extractJsonArray(html, "buySellArticles");
-  if (raw && raw.length) return raw.map(normalize).filter((a) => a.id && a.url);
-  return parseLinks(html);
+  const articles = raw && raw.length ? raw.map(normalize) : parseLinks(html);
+  for (const a of articles) a.id = articleKey(a.url) ?? a.id;
+  return { articles: articles.filter((a) => a.id && a.url), source: raw && raw.length ? "json" : "links" };
+}
+
+export const parseSearchHtml = (html) => parseSearch(html).articles;
+
+// 상세 주소 /kr/buy-sell/<제목-슬러그>-<고유코드>/ 에서 고유코드만 뽑는다.
+// 판매자가 제목을 고쳐도 같은 매물로 인식하기 위함.
+export function articleKey(url) {
+  const m = String(url ?? "").match(/\/buy-sell\/([^/?#]+)/);
+  if (!m) return null;
+  const seg = decodeURIComponent(m[1]);
+  return seg.slice(seg.lastIndexOf("-") + 1) || seg;
 }
 
 // `"key":[ ... ]` 를 찾아 괄호 짝을 맞춰 배열 부분만 잘라 JSON으로 읽는다.
@@ -120,6 +133,16 @@ function parseLinks(html) {
     });
   }
   return [...seen.values()];
+}
+
+// Actions 로그에 남길 진단 요약 (공개 로그라 매물 내용은 남기지 않고 숫자만)
+export function describe({ articles, source }) {
+  const n = articles.length;
+  const has = (k) => articles.filter((a) => a[k] != null && a[k] !== "").length;
+  const statuses = {};
+  for (const a of articles) statuses[a.status || "없음"] = (statuses[a.status || "없음"] ?? 0) + 1;
+  const st = Object.entries(statuses).map(([k, v]) => `${k} ${v}`).join("·");
+  return `읽기 ${source}, 가격 ${has("price")}/${n}, 지역 ${has("region")}/${n}, 상태 ${st}`;
 }
 
 export function isSoldOrReserved(article) {
