@@ -6,6 +6,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "7316baab",
+      "keyword": "베이뵨 바운서",
+      "minPrice": null,
+      "maxPrice": 50000,
+      "enabled": true
     }
   ]
 }
