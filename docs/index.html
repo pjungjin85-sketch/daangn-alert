@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>당근 키워드 알림</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥕</text></svg>">
+<style>
+  :root {
+    --bg: #f6f6f4; --card: #ffffff; --text: #1d1d1b; --sub: #6b6b66; --line: #e6e5e0;
+    --accent: #ff6f0f; --accent-soft: #fff1e7; --danger: #d93a2b; --ok: #1f8a4c;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --card: #1e1e1c; --text: #ecebe6; --sub: #9b9a94; --line: #2f2e2b;
+      --accent: #ff8a3d; --accent-soft: #3a2414; --danger: #ff6b5c; --ok: #4cc27d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 14px; color: var(--sub); font-weight: 600; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 4px; }
+  input[type=text], input[type=password] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); font-size: 15px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .hint { font-size: 12px; color: var(--sub); min-height: 18px; margin-top: 2px; }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+  .primary { background: var(--accent); color: #fff; font-weight: 600; }
+  .ghost { background: transparent; color: var(--sub); border: 1px solid var(--line); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .actions .primary { flex: 1; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.kw { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+  li.kw:first-child { border-top: 0; }
+  .kw-main { flex: 1; min-width: 0; }
+  .kw-name { font-weight: 600; word-break: break-all; }
+  .kw-name a { color: inherit; text-decoration: none; }
+  .kw-name a:hover { text-decoration: underline; }
+  .kw-price { font-size: 13px; color: var(--sub); }
+  li.off .kw-main { opacity: .45; }
+  .icon-btn { background: transparent; color: var(--sub); padding: 6px 8px; font-size: 13px; }
+  .icon-btn.del { color: var(--danger); }
+  .switch { position: relative; width: 40px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; transition: .15s; cursor: pointer; }
+  .switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: .15s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(16px); }
+  .empty { color: var(--sub); text-align: center; padding: 24px 0; }
+
+  .status { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--sub); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--sub); margin-right: 6px; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--danger); } .dot.run { background: var(--accent); }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 10px 16px; border-radius: 99px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+  #toast.show { opacity: 1; }
+  details summary { cursor: pointer; color: var(--sub); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🥕 당근 키워드 알림</h1>
+    <button class="ghost" id="settingsBtn">설정</button>
+  </header>
+
+  <section class="card" id="settingsCard" hidden>
+    <h2>GitHub 연결</h2>
+    <label for="repo">저장소 (아이디/저장소이름)</label>
+    <input type="text" id="repo" placeholder="myname/daangn-alert" autocomplete="off">
+    <div style="height:10px"></div>
+    <label for="token">GitHub 토큰</label>
+    <input type="password" id="token" placeholder="github_pat_..." autocomplete="off">
+    <div class="hint">토큰은 이 브라우저에만 저장됩니다. 권한: 이 저장소의 Contents·Actions 읽기/쓰기</div>
+    <div class="actions"><button class="primary" id="saveSettings">연결</button></div>
+  </section>
+
+  <section class="card">
+    <h2 id="formTitle">키워드 추가</h2>
+    <label for="keyword">키워드</label>
+    <input type="text" id="keyword" placeholder="예: 아이패드 미니 6" autocomplete="off">
+    <div class="row">
+      <div>
+        <label for="minPrice">최소 가격</label>
+        <input type="text" id="minPrice" inputmode="numeric" placeholder="제한 없음">
+        <div class="hint" id="minHint"></div>
+      </div>
+      <div>
+        <label for="maxPrice">최대 가격</label>
+        <input type="text" id="maxPrice" inputmode="numeric" placeholder="제한 없음">
+        <div class="hint" id="maxHint"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="ghost" id="cancelEdit" hidden>취소</button>
+      <button class="primary" id="submitBtn">추가</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>등록된 키워드</h2>
+    <ul id="list"><li class="empty">불러오는 중…</li></ul>
+  </section>
+
+  <section class="card">
+    <div class="status">
+      <span id="runStatus"><span class="dot"></span>실행 기록 확인 중…</span>
+      <button class="ghost" id="runNow">지금 확인</button>
+    </div>
+  </section>
+
+  <details>
+    <summary>안내</summary>
+    <p class="hint">5분마다 당근 전체 검색을 돌려 새 매물을 텔레그램으로 보냅니다. 키워드를 새로 추가하면 첫 확인 때는 기존 매물을 기록만 하고, 그 다음부터 올라오는 매물만 알려 줍니다. 가격은 <b>30만</b>, <b>300000</b>처럼 입력할 수 있습니다.</p>
+  </details>
+</main>
+<div id="toast"></div>
+
+<script>
+const CONFIG_PATH = "config/keywords.json";
+const WORKFLOW = "check.yml";
+const $ = (id) => document.getElementById(id);
+
+const store = {
+  get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+let config = { keywords: [] };
+let sha = null;
+let editingId = null;
+
+// 저장소 기본값: Pages 주소(아이디.github.io/저장소)에서 추측
+function guessRepo() {
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const name = location.pathname.split("/").filter(Boolean)[0];
+  return m && name ? `${m[1]}/${name}` : "";
+}
+const settings = () => ({ repo: store.get("repo") || guessRepo(), token: store.get("token") });
+
+async function gh(path, opts = {}) {
+  const { repo, token } = settings();
+  const res = await fetch(`https://api.github.com/repos/${repo}${path}`, {
+    ...opts,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opts.body ? { "Content-Type": "application/json" } : {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(body.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+const b64decode = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, "")), (c) => c.charCodeAt(0)));
+const b64encode = (s) => { let bin = ""; for (const b of new TextEncoder().encode(s)) bin += String.fromCharCode(b); return btoa(bin); };
+
+async function load() {
+  const file = await gh(`/contents/${CONFIG_PATH}?ref=main&t=${Date.now()}`);
+  sha = file.sha;
+  config = JSON.parse(b64decode(file.content));
+  config.keywords ??= [];
+  render();
+}
+
+async function save(message) {
+  const body = JSON.stringify(config, null, 2) + "\n";
+  try {
+    const res = await gh(`/contents/${CONFIG_PATH}`, {
+      method: "PUT",
+      body: JSON.stringify({ message, content: b64encode(body), sha, branch: "main" }),
+    });
+    sha = res.content.sha;
+    toast("저장했어요");
+  } catch (e) {
+    if (e.status === 409) { toast("다른 곳에서 바뀌었어요. 새로 불러옵니다"); await load(); e.reloaded = true; }
+    else toast(`저장 실패: ${e.message}`);
+    throw e;
+  }
+}
+
+// "30만", "1,200,000", "15.5만" → 숫자 / 빈 값 → null
+function parsePrice(s) {
+  s = String(s || "").replace(/[,\s원]/g, "");
+  if (!s) return null;
+  const m = s.match(/^(\d+(?:\.\d+)?)(만)?$/);
+  if (!m) return NaN;
+  return Math.round(parseFloat(m[1]) * (m[2] ? 10000 : 1));
+}
+const won = (n) => n === 0 ? "0원" : `${n.toLocaleString("ko-KR")}원`;
+function priceLabel(k) {
+  const lo = k.minPrice, hi = k.maxPrice;
+  if (lo == null && hi == null) return "가격 제한 없음";
+  if (lo != null && hi != null) return `${won(lo)} ~ ${won(hi)}`;
+  return lo != null ? `${won(lo)} 이상` : `${won(hi)} 이하`;
+}
+
+function render() {
+  const list = $("list");
+  list.innerHTML = "";
+  if (!config.keywords.length) {
+    list.innerHTML = `<li class="empty">아직 등록된 키워드가 없어요</li>`;
+    return;
+  }
+  for (const k of config.keywords) {
+    const li = document.createElement("li");
+    li.className = "kw" + (k.enabled === false ? " off" : "");
+    const url = `https://www.daangn.com/kr/search/buy-sell/?q=${encodeURIComponent(k.keyword)}`;
+    li.innerHTML = `
+      <label class="switch" title="알림 켜기/끄기"><input type="checkbox" ${k.enabled !== false ? "checked" : ""}><span></span></label>
+      <div class="kw-main">
+        <div class="kw-name"><a target="_blank" rel="noopener"></a></div>
+        <div class="kw-price"></div>
+      </div>
+      <button class="icon-btn edit">수정</button>
+      <button class="icon-btn del">삭제</button>`;
+    const a = li.querySelector("a");
+    a.href = url; a.textContent = k.keyword;
+    li.querySelector(".kw-price").textContent = priceLabel(k);
+
+    li.querySelector("input").onchange = (e) => mutate(() => { k.enabled = e.target.checked; },
+      `${k.enabled === false ? "켜기" : "끄기"}: ${k.keyword}`);
+    li.querySelector(".edit").onclick = () => startEdit(k);
+    li.querySelector(".del").onclick = () => {
+      if (!confirm(`"${k.keyword}" 키워드를 삭제할까요?`)) return;
+      mutate(() => { config.keywords = config.keywords.filter((x) => x.id !== k.id); }, `삭제: ${k.keyword}`);
+    };
+    list.appendChild(li);
+  }
+}
+
+// 변경 → 저장. 실패하면 원래 상태로 되돌린다.
+async function mutate(fn, message) {
+  const backup = structuredClone(config);
+  fn();
+  render();
+  try { await save(message); }
+  catch (e) { if (!e.reloaded) { config = backup; render(); } }
+}
+
+function readForm() {
+  const keyword = $("keyword").value.trim();
+  const minPrice = parsePrice($("minPrice").value);
+  const maxPrice = parsePrice($("maxPrice").value);
+  if (!keyword) { toast("키워드를 입력해 주세요"); return null; }
+  if (Number.isNaN(minPrice) || Number.isNaN(maxPrice)) { toast("가격은 숫자 또는 '30만'처럼 입력해 주세요"); return null; }
+  if (minPrice != null && maxPrice != null && minPrice > maxPrice) { toast("최소 가격이 최대 가격보다 커요"); return null; }
+  return { keyword, minPrice, maxPrice };
+}
+
+function resetForm() {
+  editingId = null;
+  $("keyword").value = $("minPrice").value = $("maxPrice").value = "";
+  $("formTitle").textContent = "키워드 추가";
+  $("submitBtn").textContent = "추가";
+  $("cancelEdit").hidden = true;
+  updateHints();
+}
+
+function startEdit(k) {
+  editingId = k.id;
+  $("keyword").value = k.keyword;
+  $("minPrice").value = k.minPrice ?? "";
+  $("maxPrice").value = k.maxPrice ?? "";
+  $("formTitle").textContent = "키워드 수정";
+  $("submitBtn").textContent = "수정 저장";
+  $("cancelEdit").hidden = false;
+  updateHints();
+  $("keyword").focus();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+$("submitBtn").onclick = async () => {
+  const v = readForm();
+  if (!v) return;
+  const btn = $("submitBtn");
+  btn.disabled = true;
+  if (editingId) {
+    const k = config.keywords.find((x) => x.id === editingId);
+    // 키워드 문구가 바뀌면 새 키워드로 취급해 기존 매물 알림 폭탄을 막는다
+    const newId = k.keyword === v.keyword ? k.id : crypto.randomUUID().slice(0, 8);
+    await mutate(() => Object.assign(k, v, { id: newId }), `수정: ${v.keyword}`);
+  } else {
+    if (config.keywords.some((x) => x.keyword === v.keyword)) { toast("이미 등록된 키워드예요"); btn.disabled = false; return; }
+    await mutate(() => config.keywords.push({ id: crypto.randomUUID().slice(0, 8), ...v, enabled: true }), `추가: ${v.keyword}`);
+  }
+  btn.disabled = false;
+  resetForm();
+};
+$("cancelEdit").onclick = resetForm;
+$("keyword").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) $("submitBtn").click(); };
+
+function updateHints() {
+  for (const [input, hint] of [["minPrice", "minHint"], ["maxPrice", "maxHint"]]) {
+    const n = parsePrice($(input).value);
+    $(hint).textContent = n == null ? "" : Number.isNaN(n) ? "숫자로 입력" : won(n);
+  }
+}
+$("minPrice").oninput = $("maxPrice").oninput = updateHints;
+
+async function refreshRun() {
+  try {
+    const { workflow_runs: [run] } = await gh(`/actions/workflows/${WORKFLOW}/runs?per_page=1`);
+    if (!run) { $("runStatus").innerHTML = `<span class="dot"></span>아직 실행 기록이 없어요`; return; }
+    const when = new Date(run.updated_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const [cls, label] = run.status !== "completed" ? ["run", "실행 중"]
+      : run.conclusion === "success" ? ["ok", "정상"] : ["bad", "실패"];
+    $("runStatus").innerHTML = `<span class="dot ${cls}"></span>마지막 확인 ${when} · <a href="${run.html_url}" target="_blank" rel="noopener" style="color:inherit">${label}</a>`;
+  } catch { $("runStatus").innerHTML = `<span class="dot bad"></span>실행 기록을 불러오지 못했어요`; }
+}
+
+$("runNow").onclick = async () => {
+  try {
+    await gh(`/actions/workflows/${WORKFLOW}/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main" }) });
+    toast("확인을 시작했어요 (1분 정도 걸려요)");
+    setTimeout(refreshRun, 5000);
+  } catch (e) { toast(`실행 실패: ${e.message}`); }
+};
+
+$("settingsBtn").onclick = () => { $("settingsCard").hidden = !$("settingsCard").hidden; };
+$("saveSettings").onclick = () => {
+  store.set("repo", $("repo").value.trim());
+  store.set("token", $("token").value.trim());
+  start();
+};
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+async function start() {
+  const { repo, token } = settings();
+  $("repo").value = repo;
+  $("token").value = token;
+  if (!repo || !token) {
+    $("settingsCard").hidden = false;
+    $("list").innerHTML = `<li class="empty">설정에서 GitHub 저장소와 토큰을 먼저 연결해 주세요</li>`;
+    return;
+  }
+  try {
+    await load();
+    $("settingsCard").hidden = true;
+    refreshRun();
+  } catch (e) {
+    $("settingsCard").hidden = false;
+    $("list").innerHTML = `<li class="empty">불러오기 실패: ${e.status === 401 ? "토큰을 확인해 주세요" : e.status === 404 ? "저장소 이름이나 토큰 권한을 확인해 주세요" : e.message}</li>`;
+  }
+}
+start();
+</script>
+</body>
+</html>

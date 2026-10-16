@@ -1,0 +1,35 @@
+# 🥕 당근 키워드 알림
+
+당근 **전체 검색**을 5분마다 돌려서, 등록한 키워드에 새 매물이 올라오면 텔레그램으로 제목·가격·지역·링크를 보내 줍니다.
+키워드와 가격 범위는 GitHub Pages 관리 페이지에서 추가·수정·삭제합니다.
+
+```
+GitHub Actions (5분마다) → 당근 검색 → data/seen.json과 비교 → 새 매물만 텔레그램 발송
+관리 페이지 (docs/index.html) → GitHub API로 config/keywords.json 수정
+```
+
+## 처음 설정
+
+1. **텔레그램 봇**: @BotFather에서 `/newbot` → 토큰을 받습니다. 봇에게 아무 메시지나 보낸 뒤
+   `https://api.telegram.org/bot<토큰>/getUpdates`를 열어 `chat.id`를 확인합니다.
+2. **저장소 Secrets** (Settings → Secrets and variables → Actions): `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
+3. **GitHub Pages** (Settings → Pages): Branch `main`, 폴더 `/docs`
+4. **관리 페이지용 토큰**: Settings(개인) → Developer settings → Fine-grained tokens →
+   이 저장소만 선택, 권한 `Contents: Read and write`, `Actions: Read and write`
+5. 관리 페이지에서 **설정** → 저장소 이름과 토큰 입력 → 키워드 추가
+
+## 동작 방식
+
+- 키워드를 새로 추가하면 첫 실행 때는 기존 매물을 기록만 하고, 그다음부터 올라오는 매물만 알립니다.
+- 판매완료·예약중 매물은 제외합니다. 가격을 못 읽은 매물은 놓치지 않도록 가격 조건과 상관없이 보냅니다.
+- 키워드 하나에서 한 번에 10건이 넘으면 10건만 보내고 나머지는 검색 링크로 묶어 보냅니다.
+- GitHub의 예약 실행은 부하에 따라 몇 분씩 늦어질 수 있습니다.
+
+## 로컬 확인
+
+```bash
+npm run dry   # 검색 결과만 출력 (발송·저장 안 함)
+npm test
+```
+
+검색 결과가 0건으로 나오면 당근 페이지 구조가 바뀐 것이므로 `src/daangn.js`의 파서를 고쳐야 합니다.

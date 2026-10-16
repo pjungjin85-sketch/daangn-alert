@@ -1,0 +1,45 @@
+name: 당근 키워드 알림
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # GitHub 사정에 따라 몇 분씩 늦게 돌 수 있음
+  workflow_dispatch:
+
+concurrency:
+  group: daangn-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 새 매물 확인 및 알림
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node src/check.js
+
+      # 본 매물 기록을 저장한다. 관리 페이지가 같은 시간에 키워드를 바꿨을 수 있으니 rebase 후 push.
+      - name: 기록 저장
+        if: always()
+        run: |
+          git config user.name "daangn-alert-bot"
+          git config user.email "daangn-alert-bot@users.noreply.github.com"
+          git add data/seen.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: 본 매물 기록 갱신"
+          for i in 1 2 3; do
+            git pull --rebase -q && git push -q && exit 0
+            sleep 3
+          done
+          exit 1

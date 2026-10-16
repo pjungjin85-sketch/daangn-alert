@@ -1,0 +1,12 @@
+{
+  "name": "daangn-alert",
+  "private": true,
+  "type": "module",
+  "description": "당근 전체 검색 키워드 새 매물 텔레그램 알림",
+  "scripts": {
+    "check": "node src/check.js",
+    "dry": "node src/check.js --dry-run",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}
