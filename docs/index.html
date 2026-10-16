@@ -205,7 +205,7 @@ async function save(message) {
     toast("저장했어요");
   } catch (e) {
     if (e.status === 409) { toast("다른 곳에서 바뀌었어요. 새로 불러옵니다"); await load(); e.reloaded = true; }
-    else toast(`저장 실패: ${e.message}`);
+    else toast(`저장 실패: ${explain(e)}`, 8000);
     throw e;
   }
 }
@@ -345,7 +345,7 @@ async function dispatch(inputs, message) {
     await gh(`/actions/workflows/${WORKFLOW}/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs }) });
     toast(message);
     setTimeout(refreshRun, 5000);
-  } catch (e) { toast(`실행 실패: ${e.message}`); }
+  } catch (e) { toast(`실행 실패: ${e.status === 403 || e.status === 404 ? "토큰에 Actions: Read and write 권한이 필요해요" : explain(e)}`, 8000); }
 }
 $("runNow").onclick = () => dispatch({}, "확인을 시작했어요 (1분 정도 걸려요)");
 $("testMsg").onclick = () => dispatch({ test: true }, "테스트 알림을 보내는 중이에요 (1분 정도 걸려요)");
@@ -358,12 +358,21 @@ $("saveSettings").onclick = () => {
 };
 
 let toastTimer;
-function toast(msg) {
+// GitHub API 오류를 사람이 읽을 수 있는 원인으로 바꾼다
+function explain(e) {
+  if (e.status === 401) return "토큰이 틀렸거나 만료됐어요. 설정에서 다시 입력해 주세요";
+  if (e.status === 403 || e.status === 404)
+    return "토큰에 이 저장소 쓰기 권한이 없어요. 토큰 설정에서 저장소 daangn-alert 선택 + Contents: Read and write 를 확인해 주세요";
+  if (e.status === 422) return "요청 형식 오류예요. 새로고침 후 다시 시도해 주세요";
+  return e.message;
+}
+
+function toast(msg, ms = 2500) {
   const t = $("toast");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2500);
+  toastTimer = setTimeout(() => t.classList.remove("show"), ms);
 }
 
 async function start() {
