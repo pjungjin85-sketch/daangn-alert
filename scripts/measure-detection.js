@@ -1,6 +1,6 @@
 // 새 글 감지 실측: 한 키워드를 일정 시간 반복 검색해서, 새로 나타난 매물이
 // 실제로 방금 올라온 글인지와 올라온 뒤 몇 분 만에 잡히는지 기록한다. (텔레그램 발송 없음)
-//   node scripts/detect-test.js <키워드> <분> <간격초>
+//   node scripts/measure-detection.js <키워드> <분> <간격초>
 import { searchArticles } from "../src/daangn.js";
 import { matchesKeyword, isFreshListing } from "../src/check.js";
 

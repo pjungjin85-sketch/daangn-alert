@@ -6,8 +6,9 @@ import { searchArticles, searchUrl, isSoldOrReserved, describe } from "./daangn.
 import { sendTelegram, escapeHtml } from "./telegram.js";
 import { isNear } from "./regions.js";
 
-const CONFIG_PATH = new URL("../config/keywords.json", import.meta.url);
-const SEEN_PATH = new URL("../data/seen.json", import.meta.url);
+// 테스트에서는 환경변수로 임시 파일을 가리킨다
+const CONFIG_PATH = process.env.DAANGN_CONFIG ?? new URL("../config/keywords.json", import.meta.url);
+const SEEN_PATH = process.env.DAANGN_SEEN ?? new URL("../data/seen.json", import.meta.url);
 const MAX_SEEN_PER_KEYWORD = 1000;
 const MAX_ALERTS_PER_RUN = 10; // 키워드 하나에서 한 번에 너무 많이 쏟아질 때 상한
 const DELAY_MS = 1500;
@@ -114,7 +115,7 @@ function formatMessage(kw, a) {
   return lines.join("\n");
 }
 
-async function main() {
+export async function main() {
   if (testOnly) {
     await sendTelegram("✅ 당근 키워드 알림 테스트 메시지입니다. 이 대화방으로 새 매물 알림이 옵니다.");
     console.log("테스트 메시지 발송 완료");
@@ -209,7 +210,7 @@ async function main() {
     await writeFile(SEEN_PATH, JSON.stringify(seen, null, 1) + "\n");
   }
   // 전부 실패했을 때만 실패로 표시 (일시적 오류 하나로 매번 메일이 오지 않게)
-  if (active.length && failures === active.length) process.exit(1);
+  if (active.length && failures === active.length) process.exitCode = 1;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

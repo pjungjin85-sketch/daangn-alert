@@ -1,0 +1,83 @@
+// 알림 흐름 전체 확인: 가짜 당근 페이지와 가짜 텔레그램으로 실제 main()을 돌린다.
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const dir = mkdtempSync(join(tmpdir(), "daangn-"));
+process.env.DAANGN_CONFIG = join(dir, "keywords.json");
+process.env.DAANGN_SEEN = join(dir, "seen.json");
+process.env.TELEGRAM_TOKEN = "t";
+process.env.TELEGRAM_CHAT_ID = "c";
+
+const iso = (minAgo) => new Date(Date.now() - minAgo * 60000).toISOString();
+const art = (id, title, price, region, createdAt, status = "Ongoing") =>
+  ({ id, href: `/kr/buy-sell/${encodeURIComponent(title)}-${id}/`, title, price: String(price), region: { name: region }, status, createdAt });
+
+let listings = [];
+let sent = [];
+const realFetch = globalThis.fetch;
+before(() => {
+  globalThis.fetch = async (url, opts) => {
+    url = String(url);
+    if (url.startsWith("https://api.telegram.org/")) {
+      sent.push(JSON.parse(opts.body).text);
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    if (url.startsWith("https://www.daangn.com/")) {
+      const html = `<script>window.x={"buySellArticles":${JSON.stringify(listings)}}</script>`;
+      return new Response(html);
+    }
+    throw new Error(`예상 못한 요청 ${url}`);
+  };
+});
+after(() => { globalThis.fetch = realFetch; });
+
+const { main } = await import("../src/check.js");
+const seenFile = () => JSON.parse(readFileSync(process.env.DAANGN_SEEN, "utf8"));
+
+test("첫 실행은 기록만, 다음 실행부터 조건 맞는 새 글만 알림", async () => {
+  writeFileSync(process.env.DAANGN_CONFIG, JSON.stringify({
+    keywords: [{ id: "k1", keyword: "아이패드 미니", minPrice: 100000, maxPrice: 400000, enabled: true }],
+  }));
+  writeFileSync(process.env.DAANGN_SEEN, "{}");
+
+  // 1회차: 기존 매물들 → 기록만 하고 알림 없음 (부산·광주 근처 매물을 넣어 추가 검색은 생략되게)
+  listings = [
+    art("old1", "아이패드 미니 6", 350000, "대연동", iso(600)),
+    art("old2", "아이패드 미니 5", 250000, "수완동", iso(900)),
+  ];
+  sent = [];
+  await main();
+  assert.equal(sent.length, 0);
+  assert.deepEqual(seenFile().k1.ids.sort(), ["old1", "old2"]);
+
+  // 2회차: 여러 종류의 '처음 보는' 매물
+  listings = [
+    ...listings,
+    art("new1", "아이패드미니 6세대 S급", 300000, "역삼동", iso(3)),     // ✅ 알림
+    art("cheap", "아이패드 미니 케이스", 15000, "역삼동", iso(2)),       // 가격 미달
+    art("air", "아이패드 에어 5", 300000, "역삼동", iso(2)),             // 키워드 불일치
+    art("resurf", "아이패드 미니 4", 200000, "역삼동", iso(60 * 24 * 30)), // 예전 매물이 순위 변동으로 보임
+    art("sold", "아이패드 미니 6 판매완료", 300000, "역삼동", iso(1), "Closed"), // 판매완료
+  ];
+  await main();
+  assert.equal(sent.length, 1, `알림 ${sent.length}건: ${sent.join(" / ")}`);
+  assert.match(sent[0], /아이패드미니 6세대 S급/);
+  assert.match(sent[0], /300,000원 · 역삼동/);
+  assert.match(sent[0], /🕒 .*분 전 등록/);
+  assert.match(sent[0], /new1/);
+
+  // 3회차: 같은 결과 → 중복 알림 없음
+  sent = [];
+  await main();
+  assert.equal(sent.length, 0);
+
+  // 4회차: 당근이 빈 페이지를 줌 → 기록 유지, 알림 없음
+  const before = seenFile();
+  listings = [];
+  await main();
+  assert.equal(sent.length, 0);
+  assert.deepEqual(seenFile(), before);
+});
