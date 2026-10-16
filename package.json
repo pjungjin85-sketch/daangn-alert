@@ -6,7 +6,10 @@
   "scripts": {
     "check": "node src/check.js",
     "dry": "node src/check.js --dry-run",
-    "test": "node --test"
+    "test": "node --test",
+    "setup-telegram": "node src/setup-telegram.js"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

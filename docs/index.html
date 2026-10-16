@@ -60,6 +60,8 @@
   .status { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--sub); }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--sub); margin-right: 6px; }
   .dot.ok { background: var(--ok); } .dot.bad { background: var(--danger); } .dot.run { background: var(--accent); }
+  .btns { display: flex; gap: 6px; flex: none; }
+  .status { flex-wrap: wrap; }
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg);
     padding: 10px 16px; border-radius: 99px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
   #toast.show { opacity: 1; }
@@ -116,7 +118,10 @@
   <section class="card">
     <div class="status">
       <span id="runStatus"><span class="dot"></span>실행 기록 확인 중…</span>
-      <button class="ghost" id="runNow">지금 확인</button>
+      <span class="btns">
+        <button class="ghost" id="testMsg">테스트 알림</button>
+        <button class="ghost" id="runNow">지금 확인</button>
+      </span>
     </div>
   </section>
 
@@ -335,13 +340,15 @@ async function refreshRun() {
   } catch { $("runStatus").innerHTML = `<span class="dot bad"></span>실행 기록을 불러오지 못했어요`; }
 }
 
-$("runNow").onclick = async () => {
+async function dispatch(inputs, message) {
   try {
-    await gh(`/actions/workflows/${WORKFLOW}/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main" }) });
-    toast("확인을 시작했어요 (1분 정도 걸려요)");
+    await gh(`/actions/workflows/${WORKFLOW}/dispatches`, { method: "POST", body: JSON.stringify({ ref: "main", inputs }) });
+    toast(message);
     setTimeout(refreshRun, 5000);
   } catch (e) { toast(`실행 실패: ${e.message}`); }
-};
+}
+$("runNow").onclick = () => dispatch({}, "확인을 시작했어요 (1분 정도 걸려요)");
+$("testMsg").onclick = () => dispatch({ test: true }, "테스트 알림을 보내는 중이에요 (1분 정도 걸려요)");
 
 $("settingsBtn").onclick = () => { $("settingsCard").hidden = !$("settingsCard").hidden; };
 $("saveSettings").onclick = () => {

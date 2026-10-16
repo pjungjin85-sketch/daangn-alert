@@ -12,6 +12,7 @@ const MAX_ALERTS_PER_RUN = 10; // 키워드 하나에서 한 번에 너무 많�
 const DELAY_MS = 1500;
 
 const dryRun = process.argv.includes("--dry-run");
+const testOnly = process.argv.includes("--test");
 
 async function readJson(url, fallback) {
   try {
@@ -47,6 +48,11 @@ function formatMessage(kw, a) {
 }
 
 async function main() {
+  if (testOnly) {
+    await sendTelegram("✅ 당근 키워드 알림 테스트 메시지입니다. 이 대화방으로 새 매물 알림이 옵니다.");
+    console.log("테스트 메시지 발송 완료");
+    return;
+  }
   const config = await readJson(CONFIG_PATH, { keywords: [] });
   const seen = await readJson(SEEN_PATH, {});
   const active = config.keywords.filter((k) => k.enabled !== false && k.keyword?.trim());

@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/5 * * * *" # GitHub 사정에 따라 몇 분씩 늦게 돌 수 있음
   workflow_dispatch:
+    inputs:
+      test:
+        description: "텔레그램 테스트 메시지만 보내기"
+        type: boolean
+        default: false
 
 concurrency:
   group: daangn-check
@@ -27,7 +32,7 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node src/check.js
+        run: node src/check.js ${{ inputs.test && '--test' || '' }}
 
       # 본 매물 기록을 저장한다. 관리 페이지가 같은 시간에 키워드를 바꿨을 수 있으니 rebase 후 push.
       - name: 기록 저장

@@ -10,13 +10,13 @@ GitHub Actions (5분마다) → 당근 검색 → data/seen.json과 비교 → �
 
 ## 처음 설정
 
-1. **텔레그램 봇**: @BotFather에서 `/newbot` → 토큰을 받습니다. 봇에게 아무 메시지나 보낸 뒤
-   `https://api.telegram.org/bot<토큰>/getUpdates`를 열어 `chat.id`를 확인합니다.
-2. **저장소 Secrets** (Settings → Secrets and variables → Actions): `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
+1. **텔레그램 봇**: 알림 받을 계정에서 @BotFather → `/newbot` → 토큰을 받습니다.
+2. **연결 + Secrets 등록**: 터미널에서 `npm run setup-telegram` 실행 → 토큰 입력 → 봇에게 메시지 보내기.
+   chat id를 찾아 테스트 메시지를 보내고 `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID` Secrets까지 등록합니다 (gh CLI 로그인 필요).
 3. **GitHub Pages** (Settings → Pages): Branch `main`, 폴더 `/docs`
 4. **관리 페이지용 토큰**: Settings(개인) → Developer settings → Fine-grained tokens →
    이 저장소만 선택, 권한 `Contents: Read and write`, `Actions: Read and write`
-5. 관리 페이지에서 **설정** → 저장소 이름과 토큰 입력 → 키워드 추가
+5. 관리 페이지에서 **설정** → 토큰 입력 → **테스트 알림**으로 Actions에서 발송되는지 확인 → 키워드 추가
 
 ## 동작 방식
 
