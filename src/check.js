@@ -41,7 +41,7 @@ function formatMessage(kw, a) {
     `🥕 <b>[${escapeHtml(kw.keyword)}]</b> 새 매물`,
     `<b>${escapeHtml(a.title)}</b>`,
     `${formatPrice(a.price)}${a.region ? ` · ${escapeHtml(a.region)}` : ""}`,
-    a.url,
+    escapeHtml(a.url),
   ];
   return lines.join("\n");
 }
@@ -105,7 +105,7 @@ async function main() {
       fresh = fresh.filter((a) => !unsent.has(a.id));
       if (targets.length > MAX_ALERTS_PER_RUN) {
         await sendTelegram(
-          `🥕 <b>[${escapeHtml(kw.keyword)}]</b> 외 ${targets.length - MAX_ALERTS_PER_RUN}건 더 있어요\n${searchUrl(kw.keyword)}`
+          `🥕 <b>[${escapeHtml(kw.keyword)}]</b> 외 ${targets.length - MAX_ALERTS_PER_RUN}건 더 있어요\n${escapeHtml(searchUrl(kw.keyword))}`
         ).catch((e) => console.error(`✗ 요약 발송 실패: ${e.message}`));
       }
     }
