@@ -10,6 +10,6 @@
     "setup-telegram": "node src/setup-telegram.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   }
 }

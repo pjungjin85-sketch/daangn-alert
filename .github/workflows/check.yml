@@ -2,7 +2,9 @@ name: 당근 키워드 알림
 
 on:
   schedule:
-    - cron: "*/5 * * * *" # GitHub 사정에 따라 몇 분씩 늦게 돌 수 있음
+    # 정확한 5분 실행은 cron-job.org → /api/tick 이 맡는다. 이건 그게 멈췄을 때를 위한 예비용.
+    # (GitHub 예약 실행은 크게 밀리거나 빠진다. 정각은 특히 붐벼서 피함)
+    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       test:

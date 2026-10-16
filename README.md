@@ -8,15 +8,18 @@ GitHub Actions (5분마다) → 당근 검색 → data/seen.json과 비교 → �
 관리 페이지 (docs/index.html) → GitHub API로 config/keywords.json 수정
 ```
 
-## 처음 설정
+## 구성
 
-1. **텔레그램 봇**: 알림 받을 계정에서 @BotFather → `/newbot` → 토큰을 받습니다.
-2. **연결 + Secrets 등록**: 터미널에서 `npm run setup-telegram` 실행 → 토큰 입력 → 봇에게 메시지 보내기.
-   chat id를 찾아 테스트 메시지를 보내고 `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID` Secrets까지 등록합니다 (gh CLI 로그인 필요).
-3. **GitHub Pages** (Settings → Pages): Branch `main`, 폴더 `/docs`
-4. **관리 페이지용 토큰**: Settings(개인) → Developer settings → Fine-grained tokens →
-   이 저장소만 선택, 권한 `Contents: Read and write`, `Actions: Read and write`
-5. 관리 페이지에서 **설정** → 토큰 입력 → **테스트 알림**으로 Actions에서 발송되는지 확인 → 키워드 추가
+```
+cron-job.org (5분마다) → Vercel /api/tick → GitHub Actions 실행 (예비: GitHub 예약 실행 매시 7·37분)
+GitHub Actions → 당근 검색 → data/seen.json과 비교 → 새 매물만 텔레그램 발송
+관리 페이지 https://daangn-alert.vercel.app (Vercel) → 비밀번호 로그인 → config/keywords.json 수정
+```
+
+- 관리 페이지와 API: `public/index.html`, `api/*.js`, `lib/*.js` — Vercel CLI로 배포 (`vercel deploy --prod`).
+  Git 연동 자동 배포는 꺼 둠 (`vercel.json`) — 5분마다 기록 커밋이 생겨 배포가 폭주하지 않도록.
+- Vercel 환경변수: `GITHUB_TOKEN`(이 저장소 Contents·Actions 쓰기), `APP_PASSWORD`, `SESSION_SECRET`, `CRON_SECRET`
+- GitHub Secrets: `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID` (`npm run setup-telegram`으로 등록)
 
 ## 동작 방식
 
