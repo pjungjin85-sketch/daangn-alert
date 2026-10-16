@@ -171,7 +171,8 @@ function structureHints(html) {
     `href="https://www.daangn.com/kr/buy-sell/ ${count(/href="https:\/\/www\.daangn\.com\/kr\/buy-sell\//g)}`,
     `buySellArticles 뒤: ${markers.join(" | ") || "없음"}`,
     `script ${count(/<script/g)}`,
-    `전체 링크 ${JSON.stringify(allLink(html))}`,
+    `지역 선택지 ${[...new Set([...html.matchAll(/[?&](?:amp;)?in=([^&"\\]+)/g)].map((m) => decodeURIComponent(m[1])))].slice(0, 40).join(", ")}`,
+    `지역 관련 키 ${[...new Set(html.match(/\\?"(region[A-Za-z]*|depth|parentId|locationName)\\?"/g) || [])].slice(0, 15).join(" ")}`,
     `title ${JSON.stringify(html.match(/<title>([^<]{0,60})/)?.[1] ?? "")}`,
   ].join(", ");
 }
