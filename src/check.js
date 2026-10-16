@@ -47,6 +47,8 @@ async function collect(keyword) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const dryRun = process.argv.includes("--dry-run");
 const testOnly = process.argv.includes("--test");
+// --keyword "아이폰": 등록 목록 대신 이 키워드 하나로 미리보기 (--dry-run과 함께 사용)
+const previewKeyword = process.argv[process.argv.indexOf("--keyword") + 1];
 
 async function readJson(url, fallback) {
   try {
@@ -120,7 +122,10 @@ async function main() {
   }
   const config = await readJson(CONFIG_PATH, { keywords: [] });
   const seen = await readJson(SEEN_PATH, {});
-  const active = config.keywords.filter((k) => k.enabled !== false && k.keyword?.trim());
+  const active =
+    dryRun && process.argv.includes("--keyword")
+      ? [{ id: "preview", keyword: previewKeyword }]
+      : config.keywords.filter((k) => k.enabled !== false && k.keyword?.trim());
   let changed = false;
   let failures = 0;
 

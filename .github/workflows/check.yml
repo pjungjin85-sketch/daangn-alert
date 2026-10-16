@@ -9,6 +9,10 @@ on:
         description: "텔레그램 테스트 메시지만 보내기"
         type: boolean
         default: false
+      preview:
+        description: "이 키워드로 미리보기만 (알림·기록 없음)"
+        type: string
+        default: ""
 
 concurrency:
   group: daangn-check
@@ -32,7 +36,10 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node src/check.js ${{ inputs.test && '--test' || '' }}
+          PREVIEW: ${{ inputs.preview }}
+        run: |
+          if [ -n "$PREVIEW" ]; then node src/check.js --dry-run --keyword "$PREVIEW"
+          else node src/check.js ${{ inputs.test && '--test' || '' }}; fi
 
       # 본 매물 기록을 저장한다. 관리 페이지가 같은 시간에 키워드를 바꿨을 수 있으니 rebase 후 push.
       - name: 기록 저장
