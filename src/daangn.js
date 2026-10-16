@@ -17,7 +17,7 @@ export async function searchArticles(keyword) {
   if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
   const html = await res.text();
   const result = { ...parseSearch(html), bytes: html.length, finalUrl: res.url };
-  if (!result.articles.length) console.log(`  [진단] ${structureHints(html)}`);
+  if (!result.articles.length) console.log(`  [진단] 최종주소 ${res.url.replace(/q=[^&]*/, "q=가")}, ${structureHints(html)}`);
   return result;
 }
 
@@ -149,6 +149,14 @@ function samples(html) {
   return out.join(" || ");
 }
 
+// 지역 필터의 "전체" 버튼이 가리키는 주소
+function allLink(html) {
+  const end = html.indexOf("<span>전체</span></a>");
+  if (end < 0) return null;
+  const start = html.lastIndexOf("<a ", end);
+  return html.slice(start, start + 200).match(/href="([^"]*)"/)?.[1]?.replace(/q=[^&]*/, "q=가") ?? null;
+}
+
 // 0건일 때 페이지 구조를 파악하기 위한 힌트 (매물 내용 없이 구조 정보만)
 function structureHints(html) {
   const count = (re) => (html.match(re) || []).length;
@@ -163,7 +171,7 @@ function structureHints(html) {
     `href="https://www.daangn.com/kr/buy-sell/ ${count(/href="https:\/\/www\.daangn\.com\/kr\/buy-sell\//g)}`,
     `buySellArticles 뒤: ${markers.join(" | ") || "없음"}`,
     `script ${count(/<script/g)}`,
-    `샘플 ${samples(html)}`,
+    `전체 링크 ${JSON.stringify(allLink(html))}`,
     `title ${JSON.stringify(html.match(/<title>([^<]{0,60})/)?.[1] ?? "")}`,
   ].join(", ");
 }
