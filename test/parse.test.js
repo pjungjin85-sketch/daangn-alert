@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseSearchHtml, toPrice, isSoldOrReserved, articleKey } from "../src/daangn.js";
+import { normalizeRegion, isNear } from "../src/regions.js";
 import { inPriceRange, formatPrice, matchesKeyword, isFreshListing, formatPosted } from "../src/check.js";
 
 const html = `<html><script>window.__ctx = {"state":{"loaderData":{"search":{"buySellArticles":[
@@ -65,4 +66,16 @@ test("최신 등록: 키워드 등록 이후 + 24시간 이내만", () => {
 test("등록일시 표시 (한국 시간)", () => {
   assert.equal(formatPosted("2026-10-16T13:35:00Z", Date.parse("2026-10-16T13:38:00Z")), "10월 16일(금) 22:35 · 3분 전");
   assert.equal(formatPosted(null), null);
+});
+
+test("동 이름으로 부산·광주 근처 판별", () => {
+  const busan = [35.18, 129.075], gwangju = [35.16, 126.85];
+  assert.equal(normalizeRegion("동삼제2동"), "동삼동");
+  assert.equal(normalizeRegion("동인동3가"), "동인동");
+  assert.equal(isNear("대연동", busan, 25), true);
+  assert.equal(isNear("반여1동", busan, 25), true);
+  assert.equal(isNear("수완동", gwangju, 25), true);
+  assert.equal(isNear("역삼동", busan, 25), false);
+  assert.equal(isNear("도원동", busan, 25), false); // 대구·인천에 같은 이름 → 근처로 보지 않음
+  assert.equal(isNear("없는동", busan, 25), false);
 });

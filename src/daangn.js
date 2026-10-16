@@ -6,8 +6,9 @@ const BASE = "https://www.daangn.com";
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 
-export function searchUrl(keyword) {
-  return `${BASE}/kr/search/buy-sell/?q=${encodeURIComponent(keyword)}`;
+// regionId: 기준 동네(당근 지역 ID). 없으면 당근 기본값(서초4동)으로 검색된다.
+export function searchUrl(keyword, regionId) {
+  return `${BASE}/kr/search/buy-sell/?q=${encodeURIComponent(keyword)}${regionId ? `&in=${regionId}` : ""}`;
 }
 
 // 당근은 해외(GitHub Actions) 요청에 매물이 빈 페이지를 자주 돌려준다 (실측 약 15%만 정상).
@@ -15,11 +16,11 @@ export function searchUrl(keyword) {
 const MAX_ATTEMPTS = 5;
 const RETRY_DELAY_MS = 3000;
 
-export async function searchArticles(keyword) {
+export async function searchArticles(keyword, regionId) {
   let last;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (attempt > 1) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-    const res = await fetch(searchUrl(keyword), {
+    const res = await fetch(searchUrl(keyword, regionId), {
       headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" },
     });
     if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
