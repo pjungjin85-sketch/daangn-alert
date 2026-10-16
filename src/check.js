@@ -105,8 +105,14 @@ async function main() {
       record.initializedAt = new Date().toISOString();
       console.log(`● ${kw.keyword}: 첫 실행 — 기존 매물 ${articles.length}건 기록, 알림 없음`);
     } else {
-      const targets = fresh.filter((a) => inPriceRange(a.price, kw));
-      console.log(`● ${kw.keyword}: 새 매물 ${fresh.length}건 / 가격조건 통과 ${targets.length}건`);
+      // 검색 결과는 관련도순 ~275건이라 예전 매물이 순위가 바뀌며 처음 보일 수 있다.
+      // 키워드 등록 이후(여유 1시간)에 올라온 매물만 진짜 새 매물로 본다.
+      const since = Date.parse(record.initializedAt) - 60 * 60 * 1000;
+      const isNew = (a) => !a.createdAt || Date.parse(a.createdAt) >= since;
+      const targets = fresh.filter(isNew).filter((a) => inPriceRange(a.price, kw));
+      console.log(
+        `● ${kw.keyword}: 처음 보는 매물 ${fresh.length}건 (예전 매물 ${fresh.filter((a) => !isNew(a)).length}건 제외) / 알림 ${targets.length}건`
+      );
       const unsent = new Set();
       for (const a of targets.slice(0, MAX_ALERTS_PER_RUN)) {
         try {
