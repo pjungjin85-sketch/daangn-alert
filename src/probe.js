@@ -1,24 +1,15 @@
-// 임시 실험: 지역(in=)이 결과에 실제로 영향을 주는지 (겹치는 매물 비율, 매물 지역 분포)
+// 임시 실험: 지역 ID → 실제 지역 이름 매핑, 결과 정렬(최신순 여부) 확인
 import { parseSearch } from "./daangn.js";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
-async function run(q, inParam) {
-  const url = `https://www.daangn.com/kr/search/buy-sell/?q=${encodeURIComponent(q)}${inParam ? `&in=${encodeURIComponent(inParam)}` : ""}`;
+const q = "실리실라스";
+for (const id of [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500]) {
+  const url = `https://www.daangn.com/kr/search/buy-sell/?q=${encodeURIComponent(q)}&in=${id}`;
   const html = await (await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" } })).text();
+  const current = html.match(/href="\/kr\/search\/buy-sell\/\?in=([^&"]+)[^"]*"\s+aria-current="page"/)?.[1];
+  const arts = parseSearch(html).articles;
+  const times = arts.map((a) => Date.parse(a.createdAt)).filter(Boolean);
+  const desc = times.every((t, i) => i === 0 || t <= times[i - 1]);
+  const oldest = times.length ? new Date(Math.min(...times)).toISOString().slice(0, 16) : "-";
+  console.log(`in=${id} → ${current ? decodeURIComponent(current) : "-"} | ${arts.length}건, 최신순정렬 ${desc}, 가장 오래된 ${oldest}, 상위지역 ${arts.slice(0, 4).map((a) => a.region).join("/")}`);
   await new Promise((r) => setTimeout(r, 1500));
-  return parseSearch(html).articles;
-}
-const top = (arts) => {
-  const c = {};
-  for (const a of arts) c[a.region || "?"] = (c[a.region || "?"] ?? 0) + 1;
-  return `지역 ${Object.keys(c).length}종: ` + Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => `${k} ${v}`).join(", ");
-};
-for (const q of ["아이폰", "실리실라스"]) {
-  const a = await run(q, "서초4동-366");
-  const b = await run(q, "1");
-  const ids = new Set(a.map((x) => x.id));
-  const overlap = b.filter((x) => ids.has(x.id)).length;
-  console.log(`[${q}] 서초 ${a.length}건 / 종로 ${b.length}건 / 겹침 ${overlap}건`);
-  console.log(`  서초 ${top(a)}`);
-  console.log(`  종로 ${top(b)}`);
-  console.log(`  필드 ${a[0] ? Object.entries(a[0]).filter(([k]) => k !== "title" && k !== "url" && k !== "thumbnail").map(([k, v]) => `${k}=${v}`).join(" ") : "-"}`);
 }
