@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseSearchHtml, toPrice, isSoldOrReserved, articleKey } from "../src/daangn.js";
-import { inPriceRange, formatPrice } from "../src/check.js";
+import { inPriceRange, formatPrice, matchesKeyword, isFreshListing, formatPosted } from "../src/check.js";
 
 const html = `<html><script>window.__ctx = {"state":{"loaderData":{"search":{"buySellArticles":[
   {"id":"abc123","href":"/kr/buy-sell/ipad-mini-abc123/","title":"아이패드 미니 6 \\"S급\\" [급처]","price":"350000.0","region":{"name":"역삼동"},"status":"Ongoing"},
@@ -41,4 +41,28 @@ test("매물 고유코드는 제목이 바뀌어도 같다", () => {
   assert.equal(articleKey("https://www.daangn.com/kr/buy-sell/%EC%8B%A4%EB%A6%AC-%EC%B0%A8%EC%BD%9C-8yu7ko316jnv/"), "8yu7ko316jnv");
   assert.equal(articleKey("/kr/buy-sell/%EC%8B%A4%EB%A6%AC-%EC%83%88%EC%A0%9C%ED%92%88-8yu7ko316jnv/"), "8yu7ko316jnv");
   assert.equal(articleKey("/kr/buy-sell/def456/"), "def456");
+});
+
+test("키워드 일치: 단어가 모두 제목에 있어야 한다", () => {
+  assert.equal(matchesKeyword("아이패드미니 6세대 S급", "아이패드 미니"), true);
+  assert.equal(matchesKeyword("iPad Mini 6", "ipad mini"), true);
+  assert.equal(matchesKeyword("아이패드 에어 5", "아이패드 미니"), false);
+  assert.equal(matchesKeyword("실리실라스 유발 타이즈", "실리실라스"), true);
+});
+
+test("최신 등록: 키워드 등록 이후 + 24시간 이내만", () => {
+  const init = "2026-10-16T13:30:00Z";
+  const now = Date.parse("2026-10-16T14:00:00Z");
+  assert.equal(isFreshListing("2026-10-16T13:50:00Z", init, now), true);
+  assert.equal(isFreshListing("2026-10-16T13:25:00Z", init, now), true); // 여유 10분
+  assert.equal(isFreshListing("2026-10-16T13:00:00Z", init, now), false);
+  assert.equal(isFreshListing("2024-11-05T04:28:00Z", init, now), false);
+  assert.equal(isFreshListing(null, init, now), false);
+  // 등록한 지 오래된 키워드도 24시간 넘은 매물은 제외
+  assert.equal(isFreshListing("2026-10-14T00:00:00Z", "2026-10-01T00:00:00Z", now), false);
+});
+
+test("등록일시 표시 (한국 시간)", () => {
+  assert.equal(formatPosted("2026-10-16T13:35:00Z", Date.parse("2026-10-16T13:38:00Z")), "10월 16일(금) 22:35 · 3분 전");
+  assert.equal(formatPosted(null), null);
 });

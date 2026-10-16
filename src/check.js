@@ -37,11 +37,43 @@ export function formatPrice(price) {
   return `${price.toLocaleString("ko-KR")}원`;
 }
 
+// 키워드의 단어가 제목에 모두 들어 있어야 일치로 본다 (대소문자·띄어쓰기 무시)
+// 예: "아이패드 미니" → "아이패드미니 6세대" 일치, "아이패드 에어" 불일치
+export function matchesKeyword(title, keyword) {
+  const t = String(title).toLowerCase().replace(/\s+/g, "");
+  return keyword.toLowerCase().split(/\s+/).filter(Boolean).every((w) => t.includes(w));
+}
+
+// 최신 등록 매물: 등록 시각이 키워드 등록 이후(여유 10분)이면서 최근 24시간 이내
+export function isFreshListing(createdAt, initializedAt, now = Date.now()) {
+  const t = Date.parse(createdAt);
+  if (!Number.isFinite(t)) return false;
+  const since = Math.max(Date.parse(initializedAt) - 10 * 60 * 1000, now - 24 * 60 * 60 * 1000);
+  return t >= since;
+}
+
+// "10월 16일(목) 22:35 · 3분 전"
+export function formatPosted(createdAt, now = Date.now()) {
+  const t = Date.parse(createdAt);
+  if (!Number.isFinite(t)) return null;
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul", month: "numeric", day: "numeric", weekday: "short",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date(t)).map((x) => [x.type, x.value])
+  );
+  const min = Math.max(0, Math.round((now - t) / 60000));
+  const ago = min < 1 ? "방금 전" : min < 60 ? `${min}분 전` : `${Math.floor(min / 60)}시간 전`;
+  return `${p.month}월 ${p.day}일(${p.weekday}) ${p.hour}:${p.minute} · ${ago}`;
+}
+
 function formatMessage(kw, a) {
+  const posted = formatPosted(a.createdAt);
   const lines = [
     `🥕 <b>[${escapeHtml(kw.keyword)}]</b> 새 매물`,
     `<b>${escapeHtml(a.title)}</b>`,
     `${formatPrice(a.price)}${a.region ? ` · ${escapeHtml(a.region)}` : ""}`,
+    ...(posted ? [`🕒 ${posted} 등록`] : []),
     escapeHtml(a.url),
   ];
   return lines.join("\n");
@@ -83,8 +115,8 @@ async function main() {
     if (dryRun) {
       console.log(`\n▶ ${kw.keyword} — ${articles.length}건  ${searchUrl(kw.keyword)}`);
       for (const a of articles.slice(0, 10)) {
-        const mark = inPriceRange(a.price, kw) ? " " : "×";
-        console.log(` ${mark} ${formatPrice(a.price).padStart(10)}  ${a.title}  [${a.region}]  ${a.url}`);
+        const mark = !matchesKeyword(a.title, kw.keyword) ? "≠" : inPriceRange(a.price, kw) ? " " : "×";
+        console.log(` ${mark} ${formatPrice(a.price).padStart(10)}  ${a.title}  [${a.region}]  ${formatPosted(a.createdAt) ?? ""}  ${a.url}`);
       }
       continue;
     }
@@ -105,13 +137,12 @@ async function main() {
       record.initializedAt = new Date().toISOString();
       console.log(`● ${kw.keyword}: 첫 실행 — 기존 매물 ${articles.length}건 기록, 알림 없음`);
     } else {
-      // 검색 결과는 관련도순 ~275건이라 예전 매물이 순위가 바뀌며 처음 보일 수 있다.
-      // 키워드 등록 이후(여유 1시간)에 올라온 매물만 진짜 새 매물로 본다.
-      const since = Date.parse(record.initializedAt) - 60 * 60 * 1000;
-      const isNew = (a) => !a.createdAt || Date.parse(a.createdAt) >= since;
-      const targets = fresh.filter(isNew).filter((a) => inPriceRange(a.price, kw));
+      // 알림 조건: ① 처음 보는 매물 ② 제목이 키워드와 일치 ③ 키워드 등록 이후 새로 올라온 매물 ④ 가격 조건
+      const matched = fresh.filter((a) => matchesKeyword(a.title, kw.keyword));
+      const recent = matched.filter((a) => isFreshListing(a.createdAt, record.initializedAt));
+      const targets = recent.filter((a) => inPriceRange(a.price, kw));
       console.log(
-        `● ${kw.keyword}: 처음 보는 매물 ${fresh.length}건 (예전 매물 ${fresh.filter((a) => !isNew(a)).length}건 제외) / 알림 ${targets.length}건`
+        `● ${kw.keyword}: 처음 보는 매물 ${fresh.length} → 키워드 일치 ${matched.length} → 최신 등록 ${recent.length} → 가격 통과(알림) ${targets.length}`
       );
       const unsent = new Set();
       for (const a of targets.slice(0, MAX_ALERTS_PER_RUN)) {
