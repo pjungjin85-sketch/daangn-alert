@@ -1,15 +1,15 @@
-// 임시 실험: 지역 ID → 실제 지역 이름 매핑, 결과 정렬(최신순 여부) 확인
+// 임시 실험: 같은 요청 반복 시 빈 결과가 나오는 빈도 (간격별)
 import { parseSearch } from "./daangn.js";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
-const q = "실리실라스";
-for (const id of [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500]) {
-  const url = `https://www.daangn.com/kr/search/buy-sell/?q=${encodeURIComponent(q)}&in=${id}`;
-  const html = await (await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" } })).text();
-  const current = html.match(/href="\/kr\/search\/buy-sell\/\?in=([^&"]+)[^"]*"\s+aria-current="page"/)?.[1];
-  const arts = parseSearch(html).articles;
-  const times = arts.map((a) => Date.parse(a.createdAt)).filter(Boolean);
-  const desc = times.every((t, i) => i === 0 || t <= times[i - 1]);
-  const oldest = times.length ? new Date(Math.min(...times)).toISOString().slice(0, 16) : "-";
-  console.log(`in=${id} → ${current ? decodeURIComponent(current) : "-"} | ${arts.length}건, 최신순정렬 ${desc}, 가장 오래된 ${oldest}, 상위지역 ${arts.slice(0, 4).map((a) => a.region).join("/")}`);
-  await new Promise((r) => setTimeout(r, 1500));
+async function once(label, url) {
+  const t = Date.now();
+  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" } });
+  const html = await res.text();
+  const n = parseSearch(html).articles.length;
+  const cache = ["x-cache", "cf-cache-status", "age", "x-vercel-cache", "cache-control"].map((h) => res.headers.get(h) ? `${h}=${res.headers.get(h)}` : "").filter(Boolean).join(" ");
+  console.log(`${label} ${res.status} ${n}건 ${Math.round(html.length / 1024)}KB ${Date.now() - t}ms ${cache}`);
 }
+const q = encodeURIComponent("실리실라스");
+for (let i = 0; i < 6; i++) { await once(`in=366 #${i}`, `https://www.daangn.com/kr/search/buy-sell/?q=${q}&in=366`); await new Promise((r) => setTimeout(r, 5000)); }
+for (let i = 0; i < 4; i++) { await once(`no-in #${i}`, `https://www.daangn.com/kr/search/buy-sell/?q=${q}`); await new Promise((r) => setTimeout(r, 5000)); }
+for (let i = 0; i < 3; i++) { await once(`in=서초4동-366 #${i}`, `https://www.daangn.com/kr/search/buy-sell/?in=${encodeURIComponent("서초4동-366")}&q=${q}`); await new Promise((r) => setTimeout(r, 5000)); }
