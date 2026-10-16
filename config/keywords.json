@@ -13,6 +13,13 @@
       "minPrice": null,
       "maxPrice": 50000,
       "enabled": true
+    },
+    {
+      "id": "082b10ba",
+      "keyword": "꼬숑 베어수트",
+      "minPrice": null,
+      "maxPrice": 50000,
+      "enabled": true
     }
   ]
 }
