@@ -138,6 +138,17 @@ function parseLinks(html) {
   return [...seen.values()];
 }
 
+// "buy-sell/" 주변 구조 샘플. 한글(제목 등)은 '가'로 가려 구조만 보이게 한다.
+function samples(html) {
+  const out = [];
+  let at = 0;
+  while ((at = html.indexOf("buy-sell/", at + 1)) >= 0 && out.length < 3) {
+    out.push(JSON.stringify(html.slice(Math.max(0, at - 120), at + 200).replace(/[가-힣%A-F0-9]{6,}/g, "가")));
+    at += 400;
+  }
+  return out.join(" || ");
+}
+
 // 0건일 때 페이지 구조를 파악하기 위한 힌트 (매물 내용 없이 구조 정보만)
 function structureHints(html) {
   const count = (re) => (html.match(re) || []).length;
@@ -152,6 +163,7 @@ function structureHints(html) {
     `href="https://www.daangn.com/kr/buy-sell/ ${count(/href="https:\/\/www\.daangn\.com\/kr\/buy-sell\//g)}`,
     `buySellArticles 뒤: ${markers.join(" | ") || "없음"}`,
     `script ${count(/<script/g)}`,
+    `샘플 ${samples(html)}`,
     `title ${JSON.stringify(html.match(/<title>([^<]{0,60})/)?.[1] ?? "")}`,
   ].join(", ");
 }
