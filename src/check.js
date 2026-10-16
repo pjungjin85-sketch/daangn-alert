@@ -93,10 +93,10 @@ async function main() {
     const known = new Set(record.ids);
     let fresh = articles.filter((a) => !known.has(a.id));
 
-    // 검색 결과가 0건이면 차단·일시 오류일 수 있다. 첫 기록을 0건으로 해 두면
-    // 다음 실행에서 기존 매물이 전부 새 매물로 잡히므로 아무것도 하지 않고 넘어간다.
-    if (!articles.length && !record.initializedAt) {
-      console.log(`● ${kw.keyword}: 검색 결과 0건 — 첫 기록 보류`);
+    // 재시도해도 0건이면 당근이 빈 페이지를 준 것으로 보고 이번 회차는 건너뛴다.
+    // (특히 첫 기록을 0건으로 해 두면 다음 실행에서 기존 매물이 전부 새 매물로 잡힌다)
+    if (!articles.length) {
+      console.log(`● ${kw.keyword}: 빈 결과 — 이번 회차 건너뜀`);
       continue;
     }
 

@@ -10,15 +10,23 @@ export function searchUrl(keyword) {
   return `${BASE}/kr/search/buy-sell/?q=${encodeURIComponent(keyword)}`;
 }
 
+// 당근은 해외(GitHub Actions) 요청에 매물이 빈 페이지를 자주 돌려준다 (실측 약 15%만 정상).
+// 그래서 빈 결과는 '매물 없음'이 아니라 '이번엔 실패'로 보고 간격을 두고 몇 번 다시 시도한다.
+const MAX_ATTEMPTS = 5;
+const RETRY_DELAY_MS = 3000;
+
 export async function searchArticles(keyword) {
-  const res = await fetch(searchUrl(keyword), {
-    headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" },
-  });
-  if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
-  const html = await res.text();
-  const result = { ...parseSearch(html), bytes: html.length, finalUrl: res.url };
-  if (!result.articles.length) console.log(`  [진단] 최종주소 ${res.url.replace(/q=[^&]*/, "q=가")}, ${structureHints(html)}`);
-  return result;
+  let last;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    const res = await fetch(searchUrl(keyword), {
+      headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" },
+    });
+    if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
+    last = { ...parseSearch(await res.text()), attempts: attempt };
+    if (last.articles.length) return last;
+  }
+  return last;
 }
 
 // { articles, source } — source는 어느 경로로 읽었는지 (json | links), 진단 로그용
@@ -138,53 +146,14 @@ function parseLinks(html) {
   return [...seen.values()];
 }
 
-// "buy-sell/" 주변 구조 샘플. 한글(제목 등)은 '가'로 가려 구조만 보이게 한다.
-function samples(html) {
-  const out = [];
-  let at = 0;
-  while ((at = html.indexOf("buy-sell/", at + 1)) >= 0 && out.length < 3) {
-    out.push(JSON.stringify(html.slice(Math.max(0, at - 120), at + 200).replace(/[가-힣%A-F0-9]{6,}/g, "가")));
-    at += 400;
-  }
-  return out.join(" || ");
-}
-
-// 지역 필터의 "전체" 버튼이 가리키는 주소
-function allLink(html) {
-  const end = html.indexOf("<span>전체</span></a>");
-  if (end < 0) return null;
-  const start = html.lastIndexOf("<a ", end);
-  return html.slice(start, start + 200).match(/href="([^"]*)"/)?.[1]?.replace(/q=[^&]*/, "q=가") ?? null;
-}
-
-// 0건일 때 페이지 구조를 파악하기 위한 힌트 (매물 내용 없이 구조 정보만)
-function structureHints(html) {
-  const count = (re) => (html.match(re) || []).length;
-  const markers = [];
-  let at = -1;
-  while ((at = html.indexOf("buySellArticles", at + 1)) >= 0 && markers.length < 5) {
-    markers.push(JSON.stringify(html.slice(at + 15, at + 30)));
-  }
-  return [
-    `buy-sell/ ${count(/buy-sell\//g)}`,
-    `href="/kr/buy-sell/ ${count(/href="\/kr\/buy-sell\//g)}`,
-    `href="https://www.daangn.com/kr/buy-sell/ ${count(/href="https:\/\/www\.daangn\.com\/kr\/buy-sell\//g)}`,
-    `buySellArticles 뒤: ${markers.join(" | ") || "없음"}`,
-    `script ${count(/<script/g)}`,
-    `지역 선택지 ${[...new Set([...html.matchAll(/[?&](?:amp;)?in=([^&"\\]+)/g)].map((m) => decodeURIComponent(m[1])))].slice(0, 40).join(", ")}`,
-    `지역 관련 키 ${[...new Set(html.match(/\\?"(region[A-Za-z]*|depth|parentId|locationName)\\?"/g) || [])].slice(0, 15).join(" ")}`,
-    `title ${JSON.stringify(html.match(/<title>([^<]{0,60})/)?.[1] ?? "")}`,
-  ].join(", ");
-}
-
 // Actions 로그에 남길 진단 요약 (공개 로그라 매물 내용은 남기지 않고 숫자만)
-export function describe({ articles, source, bytes, finalUrl }) {
+export function describe({ articles, source, attempts }) {
   const n = articles.length;
   const has = (k) => articles.filter((a) => a[k] != null && a[k] !== "").length;
   const statuses = {};
   for (const a of articles) statuses[a.status || "없음"] = (statuses[a.status || "없음"] ?? 0) + 1;
   const st = Object.entries(statuses).map(([k, v]) => `${k} ${v}`).join("·");
-  return `응답 ${Math.round((bytes ?? 0) / 1024)}KB ${finalUrl ? new URL(finalUrl).pathname : "-"}, 읽기 ${source}, 가격 ${has("price")}/${n}, 지역 ${has("region")}/${n}, 상태 ${st}`;
+  return `시도 ${attempts}회, 읽기 ${source}, 가격 ${has("price")}/${n}, 지역 ${has("region")}/${n}, 상태 ${st}`;
 }
 
 export function isSoldOrReserved(article) {
