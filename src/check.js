@@ -28,6 +28,7 @@ export const EXTRA_REGIONS = [
 
 // 기본 검색 + 필요할 때만 부산·광주 기준 추가 검색. 결과는 매물 ID로 중복 제거해 합친다.
 async function collect(keyword, { regional = true } = {}) {
+  collect.regionalFailed = false; // 추가 검색이 빈 결과였으면 30분 기다리지 않고 다음 회차에 다시 한다
   const base = await searchArticles(keyword);
   console.log(`  ${keyword}: ${describe(base)}`);
   if (!base.articles.length) return [];
@@ -41,6 +42,7 @@ async function collect(keyword, { regional = true } = {}) {
       continue;
     }
     const extra = await searchArticles(keyword, r.regionId);
+    if (!extra.articles.length) collect.regionalFailed = true;
     const before = merged.size;
     for (const a of extra.articles) if (!merged.has(a.id)) merged.set(a.id, a);
     console.log(
@@ -184,7 +186,7 @@ export async function main() {
     processed++;
     if (articles.length) {
       succeeded++;
-      if (regionalDue) state.regionalAt[kw.id] = new Date().toISOString();
+      if (regionalDue && !collect.regionalFailed) state.regionalAt[kw.id] = new Date().toISOString();
     }
 
     if (dryRun) {
