@@ -2,16 +2,20 @@
 //   node src/check.js            실제 실행 (알림 발송 + data/seen.json 갱신)
 //   node src/check.js --dry-run  검색 결과만 출력 (발송·저장 안 함)
 import { readFile, writeFile } from "node:fs/promises";
-import { searchArticles, searchUrl, isSoldOrReserved, describe } from "./daangn.js";
+import { searchArticles, searchUrl, isSoldOrReserved, describe, StopRun, resetRequestBudget } from "./daangn.js";
 import { sendTelegram, escapeHtml } from "./telegram.js";
 import { isNear } from "./regions.js";
 
 // 테스트에서는 환경변수로 임시 파일을 가리킨다
 const CONFIG_PATH = process.env.DAANGN_CONFIG ?? new URL("../config/keywords.json", import.meta.url);
 const SEEN_PATH = process.env.DAANGN_SEEN ?? new URL("../data/seen.json", import.meta.url);
+// 쉬는 시간(429 대응), 지역 추가 검색 시각, 키워드 순번 같은 실행 상태
+const STATE_PATH = process.env.DAANGN_STATE ?? new URL("../data/state.json", import.meta.url);
 const MAX_SEEN_PER_KEYWORD = 1000;
 const MAX_ALERTS_PER_RUN = 10; // 키워드 하나에서 한 번에 너무 많이 쏟아질 때 상한
-const DELAY_MS = 1500;
+const REGIONAL_EVERY_MIN = 30; // 부산·광주 추가 검색은 키워드마다 30분에 한 번만 (요청 수 절약)
+const COOLDOWN_BASE_MIN = 30; // 429를 받으면 30분 → 1시간 → 2시간 … 최대 6시간 쉰다
+const COOLDOWN_MAX_MIN = 360;
 
 // 당근 검색은 기준 동네(기본 서초4동)에서 가까운 매물 위주로 ~275건만 준다.
 // 결과에 아래 지역 근처 매물이 하나도 없으면 결과가 수도권에 쏠린 것으로 보고 그 지역 기준으로 한 번 더 검색한다.
@@ -22,19 +26,19 @@ export const EXTRA_REGIONS = [
 ];
 
 // 기본 검색 + 필요할 때만 부산·광주 기준 추가 검색. 결과는 매물 ID로 중복 제거해 합친다.
-async function collect(keyword) {
+async function collect(keyword, { regional = true } = {}) {
   const base = await searchArticles(keyword);
   console.log(`  ${keyword}: ${describe(base)}`);
   if (!base.articles.length) return [];
 
   const merged = new Map(base.articles.map((a) => [a.id, a]));
+  if (!regional) return [...merged.values()];
   for (const r of EXTRA_REGIONS) {
     const nearby = base.articles.filter((a) => isNear(a.region, r.center, r.radiusKm)).length;
     if (nearby) {
       console.log(`    ${r.name} 근처 ${nearby}건 있음 → 추가 검색 안 함`);
       continue;
     }
-    await sleep(DELAY_MS);
     const extra = await searchArticles(keyword, r.regionId);
     const before = merged.size;
     for (const a of extra.articles) if (!merged.has(a.id)) merged.set(a.id, a);
@@ -45,7 +49,6 @@ async function collect(keyword) {
   return [...merged.values()];
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const dryRun = process.argv.includes("--dry-run");
 const testOnly = process.argv.includes("--test");
 // --keyword "아이폰": 등록 목록 대신 이 키워드 하나로 미리보기 (--dry-run과 함께 사용)
@@ -88,6 +91,9 @@ export function isFreshListing(createdAt, initializedAt, now = Date.now()) {
   return t >= since;
 }
 
+const formatKst = (iso) =>
+  new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
 // "10월 16일(목) 22:35 · 3분 전"
 export function formatPosted(createdAt, now = Date.now()) {
   const t = Date.parse(createdAt);
@@ -127,26 +133,55 @@ export async function main() {
     dryRun && process.argv.includes("--keyword")
       ? [{ id: "preview", keyword: previewKeyword }]
       : config.keywords.filter((k) => k.enabled !== false && k.keyword?.trim());
+  const state = { cooldownUntil: null, cooldownLevel: 0, nextIndex: 0, regionalAt: {}, ...(await readJson(STATE_PATH, {})) };
+  const stateBefore = JSON.stringify(state);
   let changed = false;
   let failures = 0;
+  let succeeded = 0;
+  let rateLimited = null;
+
+  // 당근이 막아서 쉬는 중이면 아무 요청도 보내지 않는다
+  if (!dryRun && state.cooldownUntil && Date.parse(state.cooldownUntil) > Date.now()) {
+    console.log(`⏸ 당근 요청 제한으로 쉬는 중 — ${formatKst(state.cooldownUntil)}까지`);
+    return;
+  }
+  resetRequestBudget();
 
   // 삭제된 키워드의 기록은 정리한다
   for (const id of Object.keys(seen)) {
     if (!config.keywords.some((k) => k.id === id)) {
       delete seen[id];
+      delete state.regionalAt[id];
       changed = true;
     }
   }
 
-  for (const [i, kw] of active.entries()) {
-    if (i > 0) await sleep(DELAY_MS);
+  // 요청 상한 때문에 회차 중간에 멈추면 뒤쪽 키워드가 계속 밀리지 않도록 시작 순번을 돌린다
+  const start = active.length ? state.nextIndex % active.length : 0;
+  const ordered = [...active.slice(start), ...active.slice(0, start)];
+  let processed = 0;
+
+  for (const kw of ordered) {
     let articles;
+    const regionalDue =
+      Date.now() - (Date.parse(state.regionalAt[kw.id] ?? 0) || 0) >= REGIONAL_EVERY_MIN * 60_000;
     try {
-      articles = (await collect(kw.keyword.trim())).filter((a) => !isSoldOrReserved(a));
+      articles = (await collect(kw.keyword.trim(), { regional: regionalDue })).filter((a) => !isSoldOrReserved(a));
     } catch (e) {
+      if (e instanceof StopRun) {
+        console.log(`⏹ ${e.message} — 남은 키워드는 다음 회차에`);
+        if (e.rateLimited) rateLimited = e;
+        break;
+      }
       failures++;
+      processed++;
       console.error(`✗ ${kw.keyword}: ${e.message}`);
       continue;
+    }
+    processed++;
+    if (articles.length) {
+      succeeded++;
+      if (regionalDue) state.regionalAt[kw.id] = new Date().toISOString();
     }
 
     if (dryRun) {
@@ -206,11 +241,35 @@ export async function main() {
     }
   }
 
-  if (!dryRun && changed) {
-    await writeFile(SEEN_PATH, JSON.stringify(seen, null, 1) + "\n");
+  if (dryRun) return;
+  state.nextIndex = active.length ? (start + processed) % active.length : 0;
+
+  if (rateLimited) {
+    // 429: 쉬는 시간을 두 배씩 늘린다. 처음 막혔을 때만 텔레그램으로 알린다.
+    state.cooldownLevel += 1;
+    const minutes = Math.max(
+      Math.min(COOLDOWN_BASE_MIN * 2 ** (state.cooldownLevel - 1), COOLDOWN_MAX_MIN),
+      Math.ceil(rateLimited.retryAfterSec / 60)
+    );
+    state.cooldownUntil = new Date(Date.now() + minutes * 60_000).toISOString();
+    console.log(`⏸ ${minutes}분 쉬기 (${state.cooldownLevel}단계) — ${formatKst(state.cooldownUntil)}까지`);
+    if (state.cooldownLevel === 1) {
+      await sendTelegram(
+        `⚠️ 당근이 요청이 많다며 잠시 막았어요. ${minutes}분 쉬었다가 다시 확인할게요.\n(쉬는 동안은 새 매물 알림이 늦어져요)`
+      ).catch((e) => console.error(`✗ 안내 발송 실패: ${e.message}`));
+    }
+  } else if (succeeded && state.cooldownLevel > 0) {
+    state.cooldownLevel = 0;
+    state.cooldownUntil = null;
+    await sendTelegram("✅ 당근 확인을 다시 시작했어요.").catch((e) => console.error(`✗ 안내 발송 실패: ${e.message}`));
   }
-  // 전부 실패했을 때만 실패로 표시 (일시적 오류 하나로 매번 메일이 오지 않게)
-  if (active.length && failures === active.length) process.exitCode = 1;
+
+  if (changed) await writeFile(SEEN_PATH, JSON.stringify(seen, null, 1) + "\n");
+  if (JSON.stringify(state) !== stateBefore) await writeFile(STATE_PATH, JSON.stringify(state, null, 1) + "\n");
+
+  // 코드나 설정 문제처럼 '예상 못한 오류'로 처리한 키워드가 전부 실패했을 때만 실패로 표시한다.
+  // (당근의 요청 제한·빈 페이지는 실패로 보지 않는다 — 5분마다 실패 메일이 가지 않게)
+  if (processed && failures === processed) process.exitCode = 1;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

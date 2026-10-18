@@ -49,7 +49,7 @@ jobs:
         run: |
           git config user.name "daangn-alert-bot"
           git config user.email "daangn-alert-bot@users.noreply.github.com"
-          git add data/seen.json
+          git add data/
           git diff --cached --quiet && exit 0
           git commit -m "chore: 본 매물 기록 갱신"
           for i in 1 2 3; do

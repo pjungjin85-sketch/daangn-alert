@@ -11,21 +11,63 @@ export function searchUrl(keyword, regionId) {
   return `${BASE}/kr/search/buy-sell/?q=${encodeURIComponent(keyword)}${regionId ? `&in=${regionId}` : ""}`;
 }
 
-// 당근은 해외(GitHub Actions) 요청에 매물이 빈 페이지를 자주 돌려준다 (실측 약 15%만 정상).
-// 그래서 빈 결과는 '매물 없음'이 아니라 '이번엔 실패'로 보고 간격을 두고 몇 번 다시 시도한다.
-const MAX_ATTEMPTS = 5;
-const RETRY_DELAY_MS = 3000;
+// 요청 속도 제한. 2026-10-18 키워드 5개 × 빈 페이지 재시도(최대 5회)로 시간당 300~400회를 보내다
+// 당근에게 429(요청 과다)로 막혔다. 그래서 한 회차의 요청 수·간격·재시도를 묶어 둔다.
+// (테스트에서는 이 값들을 0으로 바꿔 빨리 돌린다)
+export const LIMITS = {
+  maxAttempts: 2, // 빈 페이지일 때 다시 시도하는 횟수 포함 최대 시도
+  retryDelayMs: 10_000,
+  gapMs: 5_000, // 요청 사이 최소 간격
+  maxRequests: 20, // 한 회차 요청 상한
+  maxEmptyStreak: 4, // 빈 페이지가 연달아 이만큼 오면 이번 회차는 접는다
+};
 
+// 이번 회차를 여기서 멈춰야 할 때. rateLimited면 당근이 429로 막은 것.
+export class StopRun extends Error {
+  constructor(message, { rateLimited = false, retryAfterSec = 0 } = {}) {
+    super(message);
+    this.rateLimited = rateLimited;
+    this.retryAfterSec = retryAfterSec;
+  }
+}
+
+let requests = 0;
+let emptyStreak = 0;
+let lastAt = 0;
+export function resetRequestBudget() {
+  requests = emptyStreak = lastAt = 0;
+}
+
+async function pacedFetch(url) {
+  if (requests >= LIMITS.maxRequests) throw new StopRun(`이번 회차 요청 상한 ${LIMITS.maxRequests}회 도달`);
+  const wait = lastAt + LIMITS.gapMs - Date.now();
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  requests++;
+  lastAt = Date.now();
+  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" } });
+  if (res.status === 429) {
+    const retryAfterSec = Number(res.headers.get("retry-after")) || 0;
+    throw new StopRun("당근이 요청을 제한함 (429)", { rateLimited: true, retryAfterSec });
+  }
+  return res;
+}
+
+// 당근은 해외(GitHub Actions) 요청에 매물이 빈 페이지를 자주 돌려준다.
+// 빈 결과는 '매물 없음'이 아니라 '이번엔 실패'로 보고 한 번만 더 시도한다.
 export async function searchArticles(keyword, regionId) {
   let last;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (attempt > 1) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-    const res = await fetch(searchUrl(keyword, regionId), {
-      headers: { "User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9" },
-    });
+  for (let attempt = 1; attempt <= LIMITS.maxAttempts; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, LIMITS.retryDelayMs));
+    const res = await pacedFetch(searchUrl(keyword, regionId));
     if (!res.ok) throw new Error(`당근 검색 실패 (${res.status}) — "${keyword}"`);
     last = { ...parseSearch(await res.text()), attempts: attempt };
-    if (last.articles.length) return last;
+    if (last.articles.length) {
+      emptyStreak = 0;
+      return last;
+    }
+    if (++emptyStreak >= LIMITS.maxEmptyStreak) {
+      throw new StopRun(`빈 페이지가 연속 ${emptyStreak}번 — 이번 회차 중단`);
+    }
   }
   return last;
 }
