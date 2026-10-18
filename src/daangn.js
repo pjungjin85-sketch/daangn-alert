@@ -24,9 +24,10 @@ export const LIMITS = {
 
 // 이번 회차를 여기서 멈춰야 할 때. rateLimited면 당근이 429로 막은 것.
 export class StopRun extends Error {
-  constructor(message, { rateLimited = false, retryAfterSec = 0 } = {}) {
+  constructor(message, { rateLimited = false, softLimited = false, retryAfterSec = 0 } = {}) {
     super(message);
     this.rateLimited = rateLimited;
+    this.softLimited = softLimited; // 빈 페이지가 계속 옴 — 429 직전의 약한 제한으로 본다
     this.retryAfterSec = retryAfterSec;
   }
 }
@@ -66,7 +67,7 @@ export async function searchArticles(keyword, regionId) {
       return last;
     }
     if (++emptyStreak >= LIMITS.maxEmptyStreak) {
-      throw new StopRun(`빈 페이지가 연속 ${emptyStreak}번 — 이번 회차 중단`);
+      throw new StopRun(`빈 페이지가 연속 ${emptyStreak}번 — 이번 회차 중단`, { softLimited: true });
     }
   }
   return last;

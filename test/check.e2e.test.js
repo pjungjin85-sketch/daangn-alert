@@ -135,3 +135,16 @@ test("요청 상한에 걸리면 다음 회차는 밀린 키워드부터", async
   assert.equal(stateFile().nextIndex, 2);
   LIMITS.maxRequests = keep;
 });
+
+test("빈 페이지가 연달아 오면 알림 없이 10분 쉰다", async () => {
+  writeFileSync(process.env.DAANGN_STATE, "{}");
+  listings = [];
+  daangnStatus = 200; sent = []; process.exitCode = 0;
+  await main();
+  const st = stateFile();
+  assert.equal(sent.length, 0);
+  assert.equal(process.exitCode, 0);
+  assert.equal(st.cooldownLevel, 0);
+  const left = Date.parse(st.cooldownUntil) - Date.now();
+  assert.ok(left > 9 * 60000 && left <= 10 * 60000);
+});

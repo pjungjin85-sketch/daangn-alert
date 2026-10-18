@@ -16,6 +16,7 @@ const MAX_ALERTS_PER_RUN = 10; // 키워드 하나에서 한 번에 너무 많�
 const REGIONAL_EVERY_MIN = 30; // 부산·광주 추가 검색은 키워드마다 30분에 한 번만 (요청 수 절약)
 const COOLDOWN_BASE_MIN = 30; // 429를 받으면 30분 → 1시간 → 2시간 … 최대 6시간 쉰다
 const COOLDOWN_MAX_MIN = 360;
+const SOFT_PAUSE_MIN = 10; // 빈 페이지가 연달아 오면 알림 없이 10분만 쉰다
 
 // 당근 검색은 기준 동네(기본 서초4동)에서 가까운 매물 위주로 ~275건만 준다.
 // 결과에 아래 지역 근처 매물이 하나도 없으면 결과가 수도권에 쏠린 것으로 보고 그 지역 기준으로 한 번 더 검색한다.
@@ -139,6 +140,7 @@ export async function main() {
   let failures = 0;
   let succeeded = 0;
   let rateLimited = null;
+  let softLimited = false;
 
   // 당근이 막아서 쉬는 중이면 아무 요청도 보내지 않는다
   if (!dryRun && state.cooldownUntil && Date.parse(state.cooldownUntil) > Date.now()) {
@@ -171,6 +173,7 @@ export async function main() {
       if (e instanceof StopRun) {
         console.log(`⏹ ${e.message} — 남은 키워드는 다음 회차에`);
         if (e.rateLimited) rateLimited = e;
+        if (e.softLimited) softLimited = true;
         break;
       }
       failures++;
@@ -258,6 +261,9 @@ export async function main() {
         `⚠️ 당근이 요청이 많다며 잠시 막았어요. ${minutes}분 쉬었다가 다시 확인할게요.\n(쉬는 동안은 새 매물 알림이 늦어져요)`
       ).catch((e) => console.error(`✗ 안내 발송 실패: ${e.message}`));
     }
+  } else if (softLimited) {
+    state.cooldownUntil = new Date(Date.now() + SOFT_PAUSE_MIN * 60_000).toISOString();
+    console.log(`⏸ 빈 페이지가 계속 와서 ${SOFT_PAUSE_MIN}분 쉬기 — ${formatKst(state.cooldownUntil)}까지`);
   } else if (succeeded && state.cooldownLevel > 0) {
     state.cooldownLevel = 0;
     state.cooldownUntil = null;
