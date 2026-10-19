@@ -41,6 +41,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "6e86bd41",
+      "keyword": "마베비 젖병워머",
+      "minPrice": null,
+      "maxPrice": 20000,
+      "enabled": true
     }
   ]
 }
