@@ -20,6 +20,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "d90ad4b0",
+      "keyword": "키디스터프",
+      "minPrice": null,
+      "maxPrice": null,
+      "enabled": true
     }
   ]
 }
