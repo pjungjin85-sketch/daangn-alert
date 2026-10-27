@@ -27,6 +27,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "5df9c74c",
+      "keyword": "자라베이비 뽀글이",
+      "minPrice": null,
+      "maxPrice": null,
+      "enabled": true
     }
   ]
 }
