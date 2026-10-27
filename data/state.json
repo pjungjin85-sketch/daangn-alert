@@ -1,6 +1,6 @@
 {
- "cooldownUntil": null,
- "cooldownLevel": 0,
+ "cooldownUntil": "2026-10-27T18:00:32.861Z",
+ "cooldownLevel": 1,
  "nextIndex": 2,
  "regionalAt": {
   "082b10ba": "2026-10-27T16:55:54.858Z",
