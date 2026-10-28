@@ -34,6 +34,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "97905f6e",
+      "keyword": "자라 오소리",
+      "minPrice": null,
+      "maxPrice": null,
+      "enabled": true
     }
   ]
 }
