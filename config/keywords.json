@@ -41,6 +41,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "c3f9099c",
+      "keyword": "무쉬",
+      "minPrice": null,
+      "maxPrice": null,
+      "enabled": true
     }
   ]
 }
