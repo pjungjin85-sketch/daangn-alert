@@ -48,6 +48,13 @@
       "minPrice": null,
       "maxPrice": 10000,
       "enabled": true
+    },
+    {
+      "id": "3e2bf2d1",
+      "keyword": "사과가쿵",
+      "minPrice": null,
+      "maxPrice": 5000,
+      "enabled": true
     }
   ]
 }
