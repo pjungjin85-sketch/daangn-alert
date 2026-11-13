@@ -41,6 +41,13 @@
       "minPrice": null,
       "maxPrice": null,
       "enabled": true
+    },
+    {
+      "id": "6411e706",
+      "keyword": "달님안녕",
+      "minPrice": null,
+      "maxPrice": 10000,
+      "enabled": true
     }
   ]
 }
