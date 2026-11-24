@@ -48,6 +48,13 @@
       "minPrice": null,
       "maxPrice": 5000,
       "enabled": true
+    },
+    {
+      "id": "81219ae6",
+      "keyword": "두드려보아요",
+      "minPrice": null,
+      "maxPrice": null,
+      "enabled": true
     }
   ]
 }
